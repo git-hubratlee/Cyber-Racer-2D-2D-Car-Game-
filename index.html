@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-select=none">
+    <title>Cyber Racer 2D - Universal Edition</title>
+    <style>
+        body {
+            background-color: #050508; color: #fff; font-family: 'Courier New', monospace;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            min-height: 100vh; margin: 0; overflow: hidden;
+            background-image: linear-gradient(rgba(0,240,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.03) 1px, transparent 1px);
+            background-size: 30px 30px;
+            /* Prevents phone browsers from bouncing or refreshing on accidental swipes */
+            touch-action: none;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        #game-container { position: relative; box-shadow: 0 0 35px rgba(0, 240, 255, 0.4); border-radius: 8px; overflow: hidden; }
+        canvas { display: block; background: #0d0d14; max-width: 100vw; max-height: 90vh; object-fit: contain; }
+        .ui-overlay { position: absolute; top: 20px; left: 20px; font-size: 1.2rem; font-weight: bold; text-shadow: 0 0 8px #00f0ff; pointer-events: none; z-index: 10; }
+        #menu { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(5, 5, 8, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; z-index: 20; }
+        h1 { color: #ff007f; text-shadow: 0 0 15px #ff007f; margin-bottom: 5px; font-size: 2.8rem; letter-spacing: 1px; }
+        p { color: #00f0ff; text-shadow: 0 0 8px #00f0ff; margin-bottom: 25px; padding: 0 15px; }
+        button { background: transparent; border: 2px solid #00f0ff; color: #00f0ff; padding: 12px 30px; font-family: inherit; font-size: 1.1rem; cursor: pointer; box-shadow: 0 0 10px #00f0ff; border-radius: 4px; font-weight: bold; }
+        button:hover { background: #00f0ff; color: #050508; box-shadow: 0 0 25px #00f0ff; }
+        
+        /* Mobile Touch Overlay Zones */
+        .touch-zone-container {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; z-index: 5; pointer-events: auto;
+        }
+        .touch-left { width: 50%; height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .touch-right { width: 50%; height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="ui-overlay" id="score-board">SCORE: 0</div>
+        
+        <!-- Mobile Tap Areas -->
+        <div class="touch-zone-container">
+            <div class="touch-left" id="btn-touch-left"></div>
+            <div class="touch-right" id="btn-touch-right"></div>
+        </div>
+
+        <canvas id="gameCanvas" width="500" height="600"></canvas>
+        <div id="menu">
+            <h1 id="menu-title">CYBER RACER 2D</h1>
+            <p id="menu-sub">5 Lanes of Hyper-Speed Traffic!</p>
+            <p style="font-size: 0.85rem; color: #aaa; margin-top: -15px;">Arrows to steer / Tap left & right side on phone</p>
+            <button onclick="startGame()">START RACE</button>
+        </div>
+    </div>
+    <script>
+        const canvas = document.getElementById("gameCanvas"), ctx = canvas.getContext("2d");
+        const scoreBoard = document.getElementById("score-board"), menu = document.getElementById("menu"), menuTitle = document.getElementById("menu-title"), menuSub = document.getElementById("menu-sub");
+        let gameActive = false, score = 0, speedMultiplier = 1, frameCount = 0, lineOffset = 0, obstacles = [];
+        const basePlayerSpeed = 7, player = { x: 225, y: 480, width: 45, height: 75, speed: basePlayerSpeed, color: "#ff007f" };
+        const keys = { ArrowLeft: false, ArrowRight: false };
+
+        // Desktop Key Listeners
+        window.addEventListener("keydown", (e) => { if(e.key in keys) keys[e.key] = true; });
+        window.addEventListener("keyup", (e) => { if(e.key in keys) keys[e.key] = false; });
+
+        // Mobile Touch Listeners (Left Zone)
+        const tLeft = document.getElementById("btn-touch-left");
+        tLeft.addEventListener("touchstart", (e) => { e.preventDefault(); keys.ArrowLeft = true; });
+        tLeft.addEventListener("touchend", (e) => { e.preventDefault(); keys.ArrowLeft = false; });
+
+        // Mobile Touch Listeners (Right Zone)
+        const tRight = document.getElementById("btn-touch-right");
+        tRight.addEventListener("touchstart", (e) => { e.preventDefault(); keys.ArrowRight = true; });
+        tRight.addEventListener("touchend", (e) => { e.preventDefault(); keys.ArrowRight = false; });
+
+        function startGame() {
+            obstacles = []; score = 0; frameCount = 0; speedMultiplier = 1; player.x = 225; player.speed = basePlayerSpeed;
+            scoreBoard.innerText = "SCORE: 0"; menu.style.display = "none"; gameActive = true; animate();
+        }
+        
+        function createObstacle() {
+            let rx = 225;
+            let laneRoll = Math.random();
+            if (laneRoll < 0.2) rx = 35;
+            else if (laneRoll < 0.4) rx = 130;
+            else if (laneRoll < 0.6) rx = 225;
+            else if (laneRoll < 0.8) rx = 320;
+            else rx = 415;
+
+            let rc = "#00f0ff";
+            let colorRoll = Math.random();
+            if (colorRoll < 0.25) rc = "#00f0ff";
+            else if (colorRoll < 0.5) rc = "#39ff14";
+            else if (colorRoll < 0.75) rc = "#ffff00";
+            else rc = "#ff00ff";
+
+            obstacles.push({ x: rx, y: -80, width: 45, height: 75, speed: (Math.random() * 2 + 4), color: rc });
+        }
+        
+        function checkCollision(r1, r2) { return (r1.x < r2.x + r2.width && r1.x + r1.width > r2.x && r1.y < r2.y + r2.height && r1.y + r1.height > r2.y); }
+        
+        function gameOver() {
+            gameActive = false; menuTitle.innerText = "CRASHED!"; menuTitle.style.color = "#ff0000";
+            menuTitle.style.textShadow = "0 0 15px #ff0000"; menuSub.innerText = "Final Score: " + score; menu.style.display = "flex";
+        }
+        
+        function animate() {
+            if (!gameActive) return;
+            ctx.fillStyle = "#0d0d14"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#252538"; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(20, 0); ctx.lineTo(20, canvas.height); ctx.moveTo(480, 0); ctx.lineTo(480, canvas.height); ctx.stroke();
+            ctx.strokeStyle = "rgba(0, 240, 255, 0.25)"; ctx.lineWidth = 3;
+            lineOffset = (lineOffset + 5 * speedMultiplier) % 40; ctx.beginPath();
+            for (let y = lineOffset - 40; y < canvas.height; y += 40) {
+                ctx.moveTo(110, y); ctx.lineTo(110, y + 24); ctx.moveTo(205, y); ctx.lineTo(205, y + 24);
+                ctx.moveTo(300, y); ctx.lineTo(300, y + 24); ctx.moveTo(395, y); ctx.lineTo(395, y + 24);
+            }
+            ctx.stroke();
+            if (keys.ArrowLeft && player.x > 25) player.x -= player.speed;
+            if (keys.ArrowRight && player.x < canvas.width - 25 - player.width) player.x += player.speed;
+            ctx.fillStyle = player.color; ctx.shadowBlur = 15; ctx.shadowColor = player.color; ctx.fillRect(player.x, player.y, player.width, player.height);
+            ctx.fillStyle = "#ffffff"; ctx.shadowBlur = 0; ctx.fillRect(player.x + 6, player.y + 15, player.width - 12, 15);
+            frameCount++; if (frameCount % Math.max(15, Math.floor(65 / speedMultiplier)) === 0) createObstacle();
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i]; obs.y += obs.speed * speedMultiplier;
+                ctx.fillStyle = obs.color; ctx.shadowBlur = 12; ctx.shadowColor = obs.color; ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                ctx.fillStyle = "#111122"; ctx.shadowBlur = 0; ctx.fillRect(obs.x + 6, obs.y + 45, obs.width - 12, 15);
+                if (checkCollision(player, obs)) { gameOver(); return; }
+                if (obs.y > canvas.height) {
+                    obstacles.splice(i, 1); score += 10; scoreBoard.innerText = "SCORE: " + score;
+                    if (score > 0 && score % 60 === 0) { speedMultiplier += 0.25; player.speed += 1.2; }
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
