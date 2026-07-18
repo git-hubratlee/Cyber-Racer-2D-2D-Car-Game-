@@ -2,7 +2,7 @@
 
 A fast-paced, 5-lane endless arcade racing game built from scratch using vanilla JavaScript and HTML5 Canvas. This project features universal device support, allowing seamless gameplay across both desktop computers and mobile touchscreen devices.
 
-🚀 **[Click Here to Play the Game]https://git-hubratlee.github.io/Cyber-Racer-2D-2D-Car-Game-/
+🚀 **[Click Here to Play the Game](https://git-hubratlee.github.io/Cyber-Racer-2D-2D-Car-Game-/)**
 
 
 ---
